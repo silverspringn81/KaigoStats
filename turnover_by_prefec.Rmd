@@ -1,0 +1,143 @@
+---
+title: "介護従事者の離職率が高い都道府県は？"
+output: html_document
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+　介護業界が抱える大きな課題の１つが、従事者の定着です。公になっている統計データをもとに、介護従事者の入職や離職の実態を調べてみましょう。最初に、公益財団法人介護労働安定センター「介護労働実態調査」から、都道府県別の介護従事者の離職率を分析します。
+
+### データの準備
+
+　介護労働実態調査には、都道府県別の「採用率・離職率・増加率＜２職種合計 正規職員 非正規職員＞」という項目があります。今回は経年での変化を見るため、平成26年度および平成29年度の調査結果を分析します。 一見したところ介護労働実態調査の結果はPDFでしか公表されていないため、予め該当部分をCSVに抽出して作業します。
+
+```{r Load_the_Data}
+# データ読み込み
+setwd('/Users/stanaka/R/kaigo/data')
+data29 <- read.csv('turnover_by_prefec_h29.csv')
+data26 <- read.csv('turnover_by_prefec_h26.csv')
+```
+
+```{r Preprocessing}
+# 列名の修正
+colnames(data29)[colnames(data29) == 'X...'] <- '都道府県'
+colnames(data26)[colnames(data26) == 'X...'] <- '都道府県'
+```
+
+### 平成29年度調査の概要
+
+まず、平成29年度調査から、都道府県別離職率の概要を調べてみましょう。
+
+```{r extract_prefec29, echo=TRUE}
+# 集計行をスキップし、都道府県データを抽出
+prefec29 <- c(grep("東京都", data29$都道府県), grep("北海道", data29$都道府県), grep("府", data29$都道府県), grep("県", data29$都道府県))
+data29_prefec <- data29[prefec29,]
+# データ数の確認
+nrow(data29_prefec)
+```
+
+```{r summary29, echo=TRUE}
+# ヒストグラム
+hist(data29_prefec$X2職種合計計.離職率, main="Turnover H29", xlab="Turnover (%)", ylab="# of prefectures", col="#ffd700", ylim=c(0,20))
+# 平均
+mean(data29_prefec$X2職種合計計.離職率)　
+```
+
+離職率の平均は15.74%です。ヒストグラムをみると右にやや裾の長い分布をしており、離職率が20%以上の都道府県が2つあるようです。何県なのか調べておきましょう。
+
+```{r high29, echo=TRUE}
+data29_prefec[data29_prefec$X2職種合計計.離職率 >= 20, ][,1:5]
+```
+
+沖縄県と和歌山県が離職率のトップ2となっています。
+
+ここで気になる点が2つあります。
+
+1つは、沖縄県と和歌山県の採用率の違いです。沖縄県は離職率が22.9%と高いのですが、採用率は28.2%とさらに高く、結果として介護従事者は全体で5.3%も増加していることが分かります。一方、和歌山県は採用率が離職率を下回っており、従事者数が減少しています。地域ごとに採用率と離職率の関係がどう異なるかは興味深いところです。
+
+もう1つは、各都道府県の介護従事者の離職率が、他の職種と比べてどのような水準にあるかということです。一見離職率が高く見えても、他の業界よりも相対的に低いということならそれほど心配はいらないかも知れません。逆に、介護業界だけが抜きん出て離職が多いのであれば何かしらの対策が必要になります。
+
+上記2つの疑問については後ほど検討することにして、まずは離職率の経年変化に着目して分析を進めましょう。
+
+### 平成26年度調査の概要
+
+先ほどと同じように、平成26年度調査から、都道府県別離職率の概要を調べてみましょう。
+
+```{r extract_prefec26, echo=TRUE}
+# 集計行をスキップし、都道府県データを抽出
+prefec26 <- c(grep("東京都", data26$都道府県), grep("北海道", data26$都道府県), grep("府", data26$都道府県), grep("県", data26$都道府県))
+data26_prefec <- data26[prefec26,]
+# データ数の確認
+nrow(data26_prefec)
+```
+
+```{r summary26, echo=TRUE}
+# ヒストグラム
+hist(data26_prefec$X2職種合計計.離職率, main="Turnover H26", xlab="Turnover (%)", ylab="# of prefectures", col="#ffd700")
+# 平均
+mean(data26_prefec$X2職種合計計.離職率)　
+```
+
+都道府県平均の離職率は15.88%となり、3年前の方が少しだけ高かったという結果になりました。
+
+```{r high26, echo=TRUE}
+data26_prefec[data26_prefec$X2職種合計計.離職率 >= 20, ][,1:5]
+```
+
+平成26年度の離職率トップ2は宮崎県と沖縄県となっています。
+
+### 3年間の離職率変化
+
+平成26年度から平成29年度にかけての離職率の変化を見るため、データを加工します。
+
+```{r merge, echo=TRUE}
+# 平成26年度と平成29年度のデータを統合
+dataM_prefec <- merge(data26_prefec, data29_prefec, by="都道府県")
+colnames(dataM_prefec)[colnames(dataM_prefec) == 'X2職種合計計.離職率.x'] <- 'h26離職率'
+colnames(dataM_prefec)[colnames(dataM_prefec) == 'X2職種合計計.離職率.y'] <- 'h29離職率'
+diff26to29 <- dataM_prefec$h29離職率 - dataM_prefec$h26離職率
+dataM_prefec <- cbind(dataM_prefec, diff26to29)
+
+```
+
+3年間の離職率変化について概要を見てみましょう。
+
+```{r summary_diff, echo=TRUE}
+# ヒストグラム
+hist(dataM_prefec$diff26to29, main="Turnover Changes in 3 yrs", xlab="Turnover Change(%)", ylab="# of prefectures", xlim=c(-10, 10), col="#ffd700")
+# 平均
+mean(dataM_prefec$diff26to29)　
+```
+
+離職率は平均で0.14ppt低下していますが、結構ばらつきがあります。3年間で離職率が3ppt以上変動した都道府県を抽出してみましょう。
+
+```{r high_diff, echo=TRUE}
+# 離職率の変動が3ppt以上の都道府県を抽出
+dataM_prefec[abs(dataM_prefec$diff26to29) >= 3, ][,c(1, ncol(dataM_prefec))]
+```
+
+徳島県は平成26年度から平成29年度にかけて離職率が7.6pptも上昇、愛媛県も5.1ppt上昇しています。一方、平成26年度に離職率トップだった宮崎県は3年間で6.2pptも低下したことが分かります。
+
+離職率が上昇した都道府県と低下した都道府県を一目で把握するために、横軸に平成26年度の離職率、縦軸に平成29年度の離職率をとって散布図を作ってみます。
+
+```{r plot_diff, echo=TRUE}
+# 散布図の作成
+g <- ggplot(dataM_prefec, aes(x=h26離職率, y =h29離職率, label=dataM_prefec$都道府県))
+g <- g + geom_point() 
+g <- g +  xlim(10,25) + ylim(10, 25) + xlab("H26 Turnover (%)") + ylab("H29 Turnover (%)")
+g <- g + geom_text(size = 3, family = "HiraKakuPro-W3", vjust=2)
+g <- g + geom_abline(intercept=0, slope=1, color="blue")
+plot(g)
+```
+
+上の散布図において、直線より上にプロットされた都道府県は3年間で離職率が上昇、下にプロットされた都道府県は同期間に離職率が低下したことになります。多くの都道府県で離職率は低下傾向にある一方、愛媛や徳島、秋田、和歌山といった一部の地域での大幅な上昇は気になるところです。逆に、宮崎や富山などで離職率が大きく低下した背景も
+
+離職率だけでは、介護従事者の動向全体を捉えることはできません。次回は「介護労働実態調査」に掲載されている採用率や増加率のデータを活用し、介護業界における従事者のフローをもう少し探ってみます。
+
+
+
+
+
