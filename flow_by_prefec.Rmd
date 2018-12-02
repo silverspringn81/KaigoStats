@@ -1,0 +1,85 @@
+---
+title: "介護従事者の増減が大きい都道府県は？"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+前回は介護従事者の「流出」を示す離職率の傾向を都道府県別に分析しましたが、一方の「流入」側はどのような状況にあるのでしょうか。今回は前回に引き続き公益財団法人介護労働安定センター「介護労働実態調査」の「採用率・離職率・増加率＜２職種合計 正規職員 非正規職員＞」のデータを使い、従事者の採用率や増加率を調べてみます。仮に離職が多くても従事者数が全体で増加していれば、介護の人手不足解消という観点ではポジティブに捉えることができそうです。果たしてそうした傾向は見られるでしょうか。
+
+### データの準備
+
+今回は平成29年度調査のみを使用します。前処理は前回と同じ手順です。
+
+```{r Load_the_Data}
+# データ読み込み
+setwd('/Users/stanaka/R/kaigo/data')
+data29 <- read.csv('turnover_by_prefec_h29.csv')
+```
+
+```{r Preprocessing}
+# 列名の修正
+colnames(data29)[colnames(data29) == 'X...'] <- '都道府県'
+```
+
+```{r extract_prefec29, echo=TRUE}
+# 集計行をスキップし、都道府県データを抽出
+prefec29 <- c(grep("東京都", data29$都道府県), grep("北海道", data29$都道府県), grep("府", data29$都道府県), grep("県", data29$都道府県))
+data29_prefec <- data29[prefec29,]
+# データ数の確認
+nrow(data29_prefec)
+```
+
+### 採用率の概要
+
+```{r summary_adoption, echo=TRUE}
+# ヒストグラム
+hist(data29_prefec$X2職種合計計.採用率, main="Adoption H29", xlab="Adoption Rate (%)", ylab="# of prefectures", col="#ffd700", ylim=c(0,20))
+# 平均
+mean(data29_prefec$X2職種合計計.採用率)　
+```
+
+採用率の平均は17.33%で、前回調べた離職率の平均（15.74%）を上回っています。従って全国平均でみると、介護従事者は増加傾向にあることになります。
+
+ヒストグラムをみると極端に採用率が高い都道府県があるようです。採用率の上位・下位5都道府県を抽出してみましょう。
+
+```{r high_low, echo=TRUE}
+head(data29_prefec[order(-data29_prefec$X2職種合計計.採用率), 1:5], n=5)
+head(data29_prefec[order(data29_prefec$X2職種合計計.採用率), 1:5], n=5)
+```
+
+離職率が22.9%と非常に高い沖縄県は、採用率も28.2%と極めて高く、従事者数は5.3%と大幅に増えています。この背景には、何か沖縄県に特有の理由があるのでしょうか。この点はまた改めて調査できればと思います。
+
+一方、徳島県や大分県は、採用率の低さが従事者の減少に結びついています。こちらの原因も気になるところです。
+
+### 離職率と採用率の関係
+
+ここまでの分析から、離職率と採用率の値で都道府県をいくつかのカテゴリに分類できる可能性が示されました。横軸に離職率、縦軸に採用率をとった散布図を作成してみましょう。
+
+```{r plot_turnover_adoption, echo=TRUE}
+# 散布図の作成
+g <- ggplot(data29_prefec, aes(x=X2職種合計計.離職率, y =X2職種合計計.採用率, label=data29_prefec$都道府県))
+g <- g + geom_point() 
+g <- g +  xlim(10,30) + ylim(10, 30) + xlab("Turnover (%)") + ylab("Adoption (%)")
+g <- g + geom_text(size = 3, family = "HiraKakuPro-W3", vjust=2)
+g <- g + geom_abline(intercept=0, slope=1, color="blue")
+g <- g + geom_vline(xintercept=mean(data29_prefec$X2職種合計計.離職率), color="red", linetype="dashed")
+g <- g + geom_hline(yintercept=mean(data29_prefec$X2職種合計計.採用率), color="red", linetype="dashed")
+plot(g)
+```
+
+上の散布図において、45度の青い線上では離職率と採用率が拮抗しており、線より上の領域では従事者数が増加、下の領域では従事者数が減少しています。また、縦横の赤い点線はそれぞれ離職率と採用率の平均を示しています。この図から、特に注目すべきは以下の各都道府県です。
+
+1. 沖縄県、佐賀県、愛媛県・・・離職も多い分、採用も多く、全体として従事者数は増えています。
+2. 徳島県、大分県・・・離職が多い一方、採用が少なく（または平均程度で）、従事者数が減っています。
+3. 新潟県、鳥取県・・・離職・採用とも少なく、全体として従事者数は増えています。
+4. 茨城県・・・離職が少ない一方、採用が多く、従事者数が増えています。
+
+1.や3.の地域でみられる傾向は、土地柄を反映している面が大きいかも知れません。一方、2.の徳島県や大分県での従事者数減少は、介護業界を巡る何かしらの課題が影響している可能性があります。ひょっとすると、その課題を解決するヒントが、4.の茨城県にあるのかも知れません。
+
+
